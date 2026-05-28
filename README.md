@@ -10,6 +10,7 @@ A full-stack application that automatically generates test cases and Gherkin fea
 - **User-Friendly Interface**: Clean React-based UI for input and results
 - **Full-Stack TypeScript**: Type-safe code across frontend and backend
 - **RESTful API**: Well-documented API endpoints for integration
+- **Jira Integration**: Connect your Jira instance to manage user stories seamlessly
 
 ## Tech Stack
 
@@ -194,6 +195,48 @@ Content-Type: application/json
   ]
 }
 ```
+
+## Jira Integration
+
+This application now supports Jira integration! Connect your Jira instance to:
+- Connect to your Jira instance with secure credentials
+- **NEW**: Fetch user stories directly from Jira
+- **NEW**: Auto-populate form fields by selecting a story
+- Manage user stories and validate credentials
+
+### Quick Start with Jira
+
+1. **Connect to Jira**:
+   - Click the "Connect Jira" button in the UI
+   - Enter your Jira Base URL, email, and API key
+   - Click "Test & Connect" to verify credentials
+
+2. **Fetch User Stories** (NEW):
+   - Once connected, click "📋 Fetch User Stories"
+   - Optionally filter by Project Key
+   - Select a story to auto-populate the form
+   - Generate test cases!
+
+3. **Get Your Jira API Key**:
+   - For Jira Cloud: https://id.atlassian.com/manage-profile/security/api-tokens
+   - For Jira Server: Use your password or generate an API token
+
+### Jira API Endpoints
+
+All Jira endpoints require a prior successful connection via the connect endpoint.
+
+- **POST** `/api/jira/connect` - Connect to your Jira instance
+- **GET** `/api/jira/status` - Check connection status
+- **GET** `/api/jira/issue/{issueKey}` - Fetch a specific issue
+- **GET** `/api/jira/stories` - Fetch all user stories
+- **POST** `/api/jira/disconnect` - Disconnect from Jira
+
+### Documentation
+
+For detailed Jira integration documentation:
+- **Setup & Features**: [JIRA_INTEGRATION.md](./JIRA_INTEGRATION.md)
+- **Fetch Stories Feature**: [FETCH_STORIES_GUIDE.md](./FETCH_STORIES_GUIDE.md)
+- **Quick Start**: [QUICK_START.md](./QUICK_START.md)
 
 ## Implementation & Architecture
 

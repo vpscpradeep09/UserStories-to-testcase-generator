@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { generateTests, generateFeatureFile } from './api'
 import { GenerateRequest, GenerateResponse, TestCase, GenerateFeatureFileResponse, Scenario } from './types'
+import { JiraConnection } from './JiraConnection'
 
 function App() {
   const [formData, setFormData] = useState<GenerateRequest>({
@@ -16,6 +17,17 @@ function App() {
   const [featureFileResults, setFeatureFileResults] = useState<GenerateFeatureFileResponse | null>(null)
   const [isLoadingFeatureFile, setIsLoadingFeatureFile] = useState<boolean>(false)
   const [expandedScenarios, setExpandedScenarios] = useState<Set<string>>(new Set())
+  const [jiraConnected, setJiraConnected] = useState<boolean>(false)
+
+  const handleJiraStorySelected = (story: any) => {
+    setFormData(prev => ({
+      ...prev,
+      storyTitle: story.summary || '',
+      description: story.description || '',
+      additionalInfo: `Jira Issue: ${story.key} | Status: ${story.status}`
+    }))
+    setError(null)
+  }
 
   const toggleTestCaseExpansion = (testCaseId: string) => {
     const newExpanded = new Set(expandedTestCases)
@@ -561,6 +573,11 @@ function App() {
           <h1 className="title">User Story to Tests</h1>
           <p className="subtitle">Generate comprehensive test cases from your user stories</p>
         </div>
+
+        <JiraConnection 
+          onConnectionStatusChange={setJiraConnected}
+          onStorySelected={handleJiraStorySelected}
+        />
         
         <form onSubmit={handleSubmit} className="form-container">
           <div className="form-group">
