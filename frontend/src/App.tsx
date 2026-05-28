@@ -93,6 +93,75 @@ function App() {
     }
   }
 
+  const downloadFeatureFile = () => {
+    if (!featureFileResults) {
+      setError('No feature file to download')
+      return
+    }
+
+    const { featureFile } = featureFileResults
+    let content = `Feature: ${featureFile.featureName}\n`
+    
+    if (featureFile.featureDescription) {
+      content += `  ${featureFile.featureDescription}\n`
+    }
+    
+    content += '\n'
+
+    featureFile.scenarios.forEach((scenario: Scenario) => {
+      content += `  Scenario: ${scenario.name}\n`
+      
+      if (scenario.description) {
+        content += `    ${scenario.description}\n`
+      }
+
+      scenario.givenSteps.forEach((step: string) => {
+        content += `    Given ${step}\n`
+      })
+
+      scenario.whenSteps.forEach((step: string) => {
+        content += `    When ${step}\n`
+      })
+
+      scenario.thenSteps.forEach((step: string) => {
+        content += `    Then ${step}\n`
+      })
+
+      if (scenario.examples && scenario.examples.length > 0) {
+        content += '\n'
+        scenario.examples.forEach((example: any) => {
+          if (example.description) {
+            content += `    Examples: ${example.description}\n`
+          } else {
+            content += `    Examples:\n`
+          }
+          
+          const keys = Object.keys(example.rows[0] || {})
+          content += `      | ${keys.join(' | ')} |\n`
+          
+          example.rows.forEach((row: any) => {
+            const values = keys.map((key: string) => row[key])
+            content += `      | ${values.join(' | ')} |\n`
+          })
+          
+          content += '\n'
+        })
+      }
+
+      content += '\n'
+    })
+
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${featureFile.featureName.replace(/\s+/g, '_')}.feature`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
       <style>{`
@@ -231,6 +300,28 @@ function App() {
         }
         
         .feature-file-btn:disabled {
+          background: #bdc3c7;
+          cursor: not-allowed;
+        }
+
+        .download-btn {
+          background: #e67e22;
+          color: white;
+          border: none;
+          padding: 10px 16px;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          margin-left: 12px;
+        }
+        
+        .download-btn:hover:not(:disabled) {
+          background: #d35400;
+        }
+        
+        .download-btn:disabled {
           background: #bdc3c7;
           cursor: not-allowed;
         }
@@ -748,11 +839,21 @@ function App() {
         {featureFileResults && (
           <div className="results-container feature-file-container">
             <div className="results-header">
-              <h2 className="results-title">Generated Feature File</h2>
-              <div className="results-meta">
-                Feature: {featureFileResults.featureFile.featureName} • {featureFileResults.featureFile.scenarios.length} scenario(s)
-                {featureFileResults.model && ` • Model: ${featureFileResults.model}`}
-                {featureFileResults.promptTokens > 0 && ` • Tokens: ${featureFileResults.promptTokens + featureFileResults.completionTokens}`}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                <div>
+                  <h2 className="results-title">Generated Feature File</h2>
+                  <div className="results-meta">
+                    Feature: {featureFileResults.featureFile.featureName} • {featureFileResults.featureFile.scenarios.length} scenario(s)
+                    {featureFileResults.model && ` • Model: ${featureFileResults.model}`}
+                    {featureFileResults.promptTokens > 0 && ` • Tokens: ${featureFileResults.promptTokens + featureFileResults.completionTokens}`}
+                  </div>
+                </div>
+                <button
+                  className="download-btn"
+                  onClick={downloadFeatureFile}
+                >
+                  ⬇ Download Feature File
+                </button>
               </div>
             </div>
 
