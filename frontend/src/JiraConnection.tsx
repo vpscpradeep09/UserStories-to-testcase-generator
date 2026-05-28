@@ -29,7 +29,7 @@ export function JiraConnection({ onConnectionStatusChange, onStorySelected }: Ji
   const [showStories, setShowStories] = useState<boolean>(false)
   const [projectKey, setProjectKey] = useState<string>('')
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8090/api'
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
 
   // Check initial connection status
   useEffect(() => {
@@ -74,6 +74,24 @@ export function JiraConnection({ onConnectionStatusChange, onStorySelected }: Ji
       return
     }
 
+    // Validate and normalize base URL
+    let normalizedBaseUrl = formData.baseUrl.trim()
+    try {
+      // Remove trailing slashes
+      normalizedBaseUrl = normalizedBaseUrl.replace(/\/+$/, '')
+
+      // Ensure it's a valid URL and not the Atlassian login page
+      const parsed = new URL(normalizedBaseUrl)
+      const hostname = parsed.hostname.toLowerCase()
+      if (hostname === 'id.atlassian.com' || hostname === 'login.atlassian.com' || parsed.pathname.includes('/login') || parsed.search) {
+        setError('Please enter your Jira instance URL (e.g., https://your-site.atlassian.net). Do not paste the Atlassian login URL.')
+        return
+      }
+    } catch {
+      setError('Invalid Jira Base URL format. Please enter a valid URL.')
+      return
+    }
+
     setIsLoading(true)
     setError(null)
     setSuccessMessage(null)
@@ -85,7 +103,7 @@ export function JiraConnection({ onConnectionStatusChange, onStorySelected }: Ji
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          baseUrl: formData.baseUrl.trim(),
+          baseUrl: normalizedBaseUrl,
           email: formData.email.trim(),
           apiKey: formData.apiKey.trim()
         }),
@@ -162,6 +180,48 @@ export function JiraConnection({ onConnectionStatusChange, onStorySelected }: Ji
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch stories')
+    } finally {
+      setIsLoadingStories(false)
+    }
+  }
+
+  // Insert a couple of mock stories (local testing) and fetch them
+  const handleInsertAndFetchMock = async () => {
+    setIsLoadingStories(true)
+    setError(null)
+
+    try {
+      const sampleStories = [
+        { key: 'MOCK-1', summary: 'Sample user story one', description: 'As a user, I can do one thing', issueType: 'Story', status: 'To Do' },
+        { key: 'MOCK-2', summary: 'Sample user story two', description: 'As a user, I can do another thing', issueType: 'Story', status: 'In Progress' }
+      ]
+
+      for (const s of sampleStories) {
+        await fetch(`${API_BASE_URL}/jira/mock/add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(s)
+        })
+      }
+
+      const response = await fetch(`${API_BASE_URL}/jira/stories?mock=true`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to fetch mock stories')
+        setIsLoadingStories(false)
+        return
+      }
+
+      setStories(data.stories || [])
+      setShowStories(true)
+      if (data.stories && data.stories.length === 0) {
+        setSuccessMessage('No stories found')
+      } else {
+        setSuccessMessage(`Fetched ${data.stories?.length || 0} stories`)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch mock stories')
     } finally {
       setIsLoadingStories(false)
     }
@@ -273,6 +333,13 @@ export function JiraConnection({ onConnectionStatusChange, onStorySelected }: Ji
               disabled={isLoadingStories}
             >
               {isLoadingStories ? 'Fetching Stories...' : '📋 Fetch User Stories'}
+            </button>
+            <button
+              onClick={handleInsertAndFetchMock}
+              style={styles.mockBtn}
+              disabled={isLoadingStories}
+            >
+              {isLoadingStories ? 'Working...' : '➕ Insert & Fetch Sample Stories (mock)'}
             </button>
           </div>
 
@@ -457,6 +524,19 @@ const styles = {
     fontWeight: '600',
     cursor: 'pointer',
     width: '100%',
+    transition: 'background-color 0.2s',
+  } as React.CSSProperties,
+  mockBtn: {
+    background: '#6c5ce7',
+    color: 'white',
+    border: 'none',
+    padding: '10px 20px',
+    borderRadius: '6px',
+    fontSize: '14px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    width: '100%',
+    marginTop: '8px',
     transition: 'background-color 0.2s',
   } as React.CSSProperties,
   storiesContainer: {

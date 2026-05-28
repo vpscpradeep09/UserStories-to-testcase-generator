@@ -4,6 +4,9 @@ import { jiraClient, JiraCredentials } from '../llm/jiraClient'
 
 export const jiraRouter = express.Router()
 
+// In-memory mock stories used for local testing
+const mockStories: Array<any> = []
+
 // Validation schema for Jira credentials
 const JiraCredentialsSchema = z.object({
   baseUrl: z.string().url('Invalid base URL format'),
@@ -26,15 +29,30 @@ jiraRouter.post('/connect', async (req: express.Request, res: express.Response):
 
     const credentials: JiraCredentials = validationResult.data
 
-    // Set credentials in the Jira client
+    // Prevent users from accidentally pasting the Atlassian login page URL
+    try {
+      const parsed = new URL(credentials.baseUrl)
+      const host = parsed.hostname.toLowerCase()
+      if (host === 'id.atlassian.com' || host === 'login.atlassian.com' || parsed.pathname.includes('/login') || parsed.search) {
+        res.status(400).json({
+          error: 'Please provide your Jira instance URL (for example https://your-domain.atlassian.net). Do not paste the Atlassian login URL.'
+        })
+        return
+      }
+    } catch (err) {
+      // if URL parsing somehow fails, fall back to existing validation
+    }
+    // Set credentials in the Jira client and test the connection
     jiraClient.setCredentials(credentials)
 
     // Test the connection
     const isConnected = await jiraClient.testConnection()
 
     if (!isConnected) {
+      // Clear credentials if test failed
+      jiraClient.setCredentials(null as any)
       res.status(401).json({
-        error: 'Failed to authenticate with Jira. Please check your credentials.'
+        error: 'Failed to authenticate with Jira. Please check your credentials and ensure the base URL is your Jira instance.'
       })
       return
     }
@@ -120,6 +138,25 @@ jiraRouter.get('/stories', async (req: express.Request, res: express.Response): 
   try {
     const credentials = jiraClient.getCredentials()
 
+    // Allow fetching mock stories for local testing via ?mock=true
+    const { projectKey, mock } = req.query
+    if (mock === 'true' || mock === '1') {
+      const stories = mockStories.map((issue) => ({
+        key: issue.key,
+        summary: issue.fields.summary,
+        description: issue.fields.description || '',
+        issueType: issue.fields.issuetype.name,
+        status: issue.fields.status.name
+      }))
+
+      res.json({
+        success: true,
+        total: stories.length,
+        stories
+      })
+      return
+    }
+
     if (!credentials) {
       res.status(401).json({
         error: 'Jira is not connected. Please connect first.'
@@ -127,7 +164,6 @@ jiraRouter.get('/stories', async (req: express.Request, res: express.Response): 
       return
     }
 
-    const { projectKey } = req.query
     const searchResponse = await jiraClient.getStories(projectKey as string | undefined)
 
     const stories = searchResponse.issues.map(issue => ({
@@ -167,3 +203,62 @@ jiraRouter.post('/disconnect', (req: express.Request, res: express.Response): vo
     })
   }
 })
+
+// Mock endpoints to help with local testing without a real Jira instance
+jiraRouter.post('/mock/add', (req: express.Request, res: express.Response) => {
+  try {
+    const { key, summary, description, issueType, status } = req.body
+
+    if (!key || !summary) {
+      res.status(400).json({ error: 'Mock story requires `key` and `summary`' })
+      return
+    }
+
+    mockStories.push({
+      key,
+      fields: {
+        summary,
+        description: description || '',
+        issuetype: { name: issueType || 'Story' },
+        status: { name: status || 'To Do' }
+      }
+    })
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Error adding mock story:', err)
+    res.status(500).json({ error: 'Failed to add mock story' })
+  }
+})
+
+jiraRouter.get('/mock/stories', (req: express.Request, res: express.Response) => {
+  try {
+    const stories = mockStories.map((issue) => ({
+      key: issue.key,
+      summary: issue.fields.summary,
+      description: issue.fields.description || '',
+      issueType: issue.fields.issuetype.name,
+      status: issue.fields.status.name
+    }))
+
+    res.json({ success: true, total: stories.length, stories })
+  } catch (err) {
+    console.error('Error getting mock stories:', err)
+    res.status(500).json({ error: 'Failed to get mock stories' })
+  }
+})
+
+// Test helper functions (exported for local unit testing)
+export function __test_addMockStoryDirect(story: any) {
+  mockStories.push(story)
+}
+
+export function __test_getMockStoriesDirect() {
+  return mockStories.map((issue) => ({
+    key: issue.key,
+    summary: issue.fields.summary,
+    description: issue.fields.description || '',
+    issueType: issue.fields.issuetype.name,
+    status: issue.fields.status.name
+  }))
+}
